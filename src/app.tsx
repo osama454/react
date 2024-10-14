@@ -12,90 +12,72 @@ const DynamicComponent = () => {
 const Container1 = () => <div>Container 1 Content</div>;
 const Header = () => <header>Header Content</header>;
 
-
 const AuthContext = createContext(null);
 
 const routesConfig = [
-  { path: "/", component: Container1, auth: false },
-  { path: "/component1", component: Component1, auth: true },
-  { path: "/component2", component: Component2, auth: true },
-  { path: "/component3", component: Component3, auth: false },
-  { path: "/component/:id", component: DynamicComponent, auth: true },
+  { path: '/', component: Container1, exact: true, auth: false },
+  { path: '/component1', component: Component1, auth: true },
+  { path: '/component2', component: Component2, auth: true },
+  { path: '/component3', component: Component3, auth: false },
+  { path: '/component/:id', component: DynamicComponent, auth: true },
 ];
 
-const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false); 
+const PrivateRoute = ({ children, authRequired }) => {
+  const { isAuthenticated } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Check authentication status (e.g., from local storage)
-    const storedAuth = localStorage.getItem('isAuthenticated');
-    setIsAuthenticated(storedAuth === 'true');
-  }, []);
+    if (authRequired && !isAuthenticated) {
+      navigate('/login'); // Redirect to login page if not authenticated
+    }
+  }, [isAuthenticated, authRequired, navigate]);
 
-  const login = () => {
-    setIsAuthenticated(true);
-    localStorage.setItem('isAuthenticated', 'true');
-  };
+  return authRequired && !isAuthenticated ? null : children;
+};
 
-  const logout = () => {
-    setIsAuthenticated(false);
-    localStorage.setItem('isAuthenticated', 'false');
+const AuthProvider = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false); // Replace with actual authentication logic
+
+  const authContextValue = {
+    isAuthenticated,
+    login: () => setIsAuthenticated(true),
+    logout: () => setIsAuthenticated(false),
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={authContextValue}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-const ProtectedRoute = ({ element, auth }) => {
-  const { isAuthenticated } = useContext(AuthContext);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (auth && !isAuthenticated) {
-      navigate('/'); // Redirect to home if not authenticated
-    }
-  }, [auth, isAuthenticated, navigate]);
-
-  if (!auth || isAuthenticated) {
-    return element;
-  }
-
-  return null;
-};
-
 const AppRoutes = () => {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-        <Router>
-          <Header />
-          <Routes>
-            {routesConfig.map(route => (
-              <Route 
-                key={route.path} 
-                path={route.path} 
-                element={
-                  <ProtectedRoute auth={route.auth} element={<route.component />} />
-                } 
-              />
-            ))}
-          </Routes>
-        </Router>
-    </Suspense>
+    <Router>
+      <Header />
+      <Suspense fallback={<div>Loading...</div>}>
+        <Routes>
+          {routesConfig.map((route, index) => (
+            <Route
+              key={index}
+              path={route.path}
+              element={
+                <PrivateRoute authRequired={route.auth}>
+                  <route.component />
+                </PrivateRoute>
+              }
+            />
+          ))}
+        </Routes>
+      </Suspense>
+    </Router>
   );
 };
 
-
-
-const App = () => {
-  return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
-  )
-};
-
+const App = () => (
+  <AuthProvider>
+    <AppRoutes />
+  </AuthProvider>
+);
 
 export default App;
